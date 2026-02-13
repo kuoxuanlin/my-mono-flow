@@ -7,61 +7,73 @@ import plotly.express as px
 from datetime import datetime, timedelta
 
 # --- 0. 基礎配置 ---
-DB_FILE = "mono_v9_data.json"
+DB_FILE = "mono_v10_data.json"
 st.set_page_config(page_title="MONO // 自律 OS", layout="wide")
 
 # =========================================================
-# 【開發者專區：各模組原始碼暫存】
+# 【模組化代碼工作站】 - 依頁面分塊
 # =========================================================
 
 if 'code_store' not in st.session_state:
     st.session_state.code_store = {
-        "CSS": """<style>
+        "GLOBAL_STYLE": """# --- 全局樣式與配置 ---
+st.markdown(\"\"\"<style>
 .stApp { background-color: #000; color: #fff; }
 [data-testid="stSidebar"] { background-color: #050505; border-right: 1px solid #111; }
+.header-tag { font-size: 10px; color: #444; letter-spacing: 4px; font-weight: 800; text-transform: uppercase; margin-bottom: 20px; }
+.xp-bar { background: #111; border-radius: 50px; height: 10px; width: 100%; margin: 15px 0; overflow: hidden; }
+.xp-progress { background: #fff; height: 100%; box-shadow: 0 0 15px #fff; transition: 1s; }
+</style>\"\"\", unsafe_allow_html=True)""",
+
+        "DASHBOARD_PAGE": """# --- 儀錶板頁面 (樣式+邏輯) ---
+st.markdown(\"\"\"<style>
 .habit-card {
     background: linear-gradient(145deg, #0d0d0d, #050505);
     border: 1px solid #1a1a1a; border-radius: 12px; padding: 20px; margin-bottom: 12px;
     border-left: 5px solid #fff; transition: 0.3s;
 }
+.task-card { background: #080808; border: 1px solid #151515; border-radius: 8px; padding: 12px; margin-bottom: 8px; }
 .done-blur { opacity: 0.3; filter: grayscale(100%); }
-.task-card {
-    background: #080808; border: 1px solid #151515;
-    border-radius: 8px; padding: 12px; margin-bottom: 8px;
-}
-.xp-bar { background: #111; border-radius: 50px; height: 10px; width: 100%; margin: 15px 0; overflow: hidden; }
-.xp-progress { background: #fff; height: 100%; box-shadow: 0 0 15px #fff; transition: 1s; }
-.header-tag { font-size: 10px; color: #444; letter-spacing: 4px; font-weight: 800; text-transform: uppercase; margin-bottom: 20px; }
+</style>\"\"\", unsafe_allow_html=True)
+
+xp_pct = data["total_xp"] % 100
+st.markdown(f"### LV.{data['level']} <span style='float:right; color:#666;'>{xp_pct}/100 XP</span>", unsafe_allow_html=True)
+st.markdown(f'<div class="xp-bar"><div class="xp-progress" style="width:{xp_pct}%"></div></div>', unsafe_allow_html=True)
+
+# 快速新增與清單顯示邏輯...
+l, r = st.columns([1.6, 1])
+with l:
+    st.markdown("<div class='header-tag'>// Protocols</div>", unsafe_allow_html=True)
+    # 習慣循環顯示...
+with r:
+    st.markdown("<div class='header-tag'>// Scans</div>", unsafe_allow_html=True)
+    # 任務循環顯示...""",
+
+        "VOID_PAGE": """# --- 專注空間頁面 (動畫+計時) ---
+st.markdown(\"\"\"<style>
 @keyframes glow {
     0% { text-shadow: 0 0 5px #fff; opacity: 0.8; }
     50% { text-shadow: 0 0 20px #fff, 0 0 30px #fff; opacity: 1; }
     100% { text-shadow: 0 0 5px #fff; opacity: 0.8; }
 }
 .timer-active { font-size: 120px; font-family: monospace; text-align: center; animation: glow 2s infinite ease-in-out; }
-</style>""",
-        "DASHBOARD": """# --- 儀錶板完整邏輯 ---
-l_col, r_col = st.columns([1.6, 1])
-with l_col:
-    st.markdown("<div class='header-tag'>// 習慣協定</div>", unsafe_allow_html=True)
-    for idx, h in enumerate(data['habits']):
-        st.write(f"Protocol: {h['name']}")
-with r_col:
-    st.markdown("<div class='header-tag'>// 任務掃描</div>", unsafe_allow_html=True)
-    for idx, t in enumerate(data['tasks']):
-        st.write(f"Task: {t['name']}")""",
-        "VOID": """# --- 專注空間動畫版 ---
-m = st.slider("分鐘", 5, 120, 25)
-if st.button("啟動"):
+</style>\"\"\", unsafe_allow_html=True)
+
+st.markdown("<div class='header-tag'>// 深度專注序列</div>", unsafe_allow_html=True)
+m = st.slider("時長", 5, 120, 25, 5)
+if st.button("啟動序列", use_container_width=True):
     ph = st.empty()
-    for i in range(m*60, 0, -1):
+    bar = st.progress(0)
+    for i in range(m*60, -1, -1):
         mm, ss = divmod(i, 60)
         ph.markdown(f"<div class='timer-active'>{mm:02}:{ss:02}</div>", unsafe_allow_html=True)
+        bar.progress(1.0 - (i/(m*60)))
         time.sleep(1)
-    add_xp(15)"""
+    st.success("完成"); add_xp(15); st.balloons()"""
     }
 
 # =========================================================
-# 【核心數據系統】
+# 【核心系統架構】
 # =========================================================
 
 def load_data():
@@ -83,7 +95,6 @@ if 'data' not in st.session_state:
     st.session_state.data = load_data()
 
 data = st.session_state.data
-st.markdown(st.session_state.code_store["CSS"], unsafe_allow_html=True)
 
 def add_xp(amount):
     data["total_xp"] += amount
@@ -93,6 +104,9 @@ def add_xp(amount):
 today = datetime.now().strftime("%Y-%m-%d")
 yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 
+# 執行全局樣式
+exec(st.session_state.code_store["GLOBAL_STYLE"])
+
 # --- 側邊欄 ---
 with st.sidebar:
     st.title("MONO // OS")
@@ -101,9 +115,11 @@ with st.sidebar:
     page = st.radio("導覽", nav)
 
 # ---------------------------------------------------------
-# 1. 儀錶板 (DASHBOARD)
+# 1. 儀錶板 
 # ---------------------------------------------------------
 if page == "儀錶板":
+    # 這裡演示如何直接運行 code_store 內容，但為了效能，主程式仍保留實體代碼
+    # 導出時則會合併 code_store 的內容
     xp_pct = data["total_xp"] % 100
     st.markdown(f"### LV.{data['level']} <span style='float:right; color:#666;'>{xp_pct}/100 XP</span>", unsafe_allow_html=True)
     st.markdown(f'<div class="xp-bar"><div class="xp-progress" style="width:{xp_pct}%"></div></div>', unsafe_allow_html=True)
@@ -136,50 +152,46 @@ if page == "儀錶板":
                 data["tasks"].pop(idx); save_data(data); st.rerun()
 
 # ---------------------------------------------------------
-# 2. 開發者主機 (修復空縮進問題)
+# 2. 開發者主機 (分段導出系統)
 # ---------------------------------------------------------
 elif page == "開發者主機":
-    st.title("🛠 MODULAR CONSOLE")
-    mod = st.radio("模組", list(st.session_state.code_store.keys()), horizontal=True)
-    st.session_state.code_store[mod] = st.text_area("編輯代碼", st.session_state.code_store[mod], height=400)
+    st.title("🛠 MODULAR CODE STATION")
+    st.info("每個分段皆包含該頁面的 CSS 樣式、動畫與核心 Python 邏輯。")
+    
+    mod = st.selectbox("選擇要編輯的模組頁面", list(st.session_state.code_store.keys()))
+    st.session_state.code_store[mod] = st.text_area("代碼編輯區", st.session_state.code_store[mod], height=500)
     
     st.divider()
-    # 這裡的導出邏輯會自動清理註釋並填補結構
-    full_py = f'''import streamlit as st
+    
+    # 導出邏輯：將所有分段組合
+    full_py = f"""import streamlit as st
 import json, os, time
 import pandas as pd
 import plotly.express as px
 from datetime import datetime, timedelta
 
-# --- 介面樣式 ---
-st.markdown("""{st.session_state.code_store["CSS"]}""", unsafe_allow_html=True)
+# --- 核心數據配置 ---
+DB_FILE = "mono_v10_data.json"
+def load_data(): ... # 略
 
-# --- 數據系統 ---
-# (此處為固定核心邏輯)
+# --- [模組分段導出] ---
 
-# --- 儀錶板 ---
-{st.session_state.code_store["DASHBOARD"]}
+{st.session_state.code_store["GLOBAL_STYLE"]}
 
-# --- 專注空間 ---
-{st.session_state.code_store["VOID"]}
-'''
-    st.download_button("📦 下載總 py 檔案", data=full_py, file_name="mono_os_final.py", use_container_width=True)
+if page == "儀錶板":
+{st.session_state.code_store["DASHBOARD_PAGE"]}
+
+elif page == "專注空間":
+{st.session_state.code_store["VOID_PAGE"]}
+"""
+    st.download_button("🚀 導出完整專案 (.py)", data=full_py, file_name="mono_os_modular.py", use_container_width=True)
 
 # ---------------------------------------------------------
-# 3. 專注空間 (動畫版)
+# 3. 專注空間
 # ---------------------------------------------------------
 elif page == "專注空間":
-    st.markdown("<div class='header-tag'>// 深度專注序列</div>", unsafe_allow_html=True)
-    m = st.slider("時長", 5, 120, 25, 5)
-    if st.button("啟動序列", use_container_width=True):
-        ph = st.empty()
-        bar = st.progress(0)
-        for i in range(m*60, -1, -1):
-            mm, ss = divmod(i, 60)
-            ph.markdown(f"<div class='timer-active'>{mm:02}:{ss:02}</div>", unsafe_allow_html=True)
-            bar.progress(1.0 - (i/(m*60)))
-            time.sleep(1)
-        st.success("完成"); add_xp(15); st.balloons()
+    # 執行 VOID 頁面代碼
+    exec(st.session_state.code_store["VOID_PAGE"])
 
 elif page == "系統設定":
     st.title("Settings")
