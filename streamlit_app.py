@@ -11,12 +11,13 @@ DB_FILE = "mono_v10_data.json"
 st.set_page_config(page_title="MONO // 自律 OS", layout="wide")
 
 # =========================================================
-# 【模組化代碼工作站】 - 依頁面分塊
+# 【核心：分段代碼倉庫初始化】
 # =========================================================
 
+# 確保 code_store 在任何情況下都會先被建立
 if 'code_store' not in st.session_state:
     st.session_state.code_store = {
-        "GLOBAL_STYLE": """# --- 全局樣式與配置 ---
+        "GLOBAL_STYLE": """
 st.markdown(\"\"\"<style>
 .stApp { background-color: #000; color: #fff; }
 [data-testid="stSidebar"] { background-color: #050505; border-right: 1px solid #111; }
@@ -25,41 +26,19 @@ st.markdown(\"\"\"<style>
 .xp-progress { background: #fff; height: 100%; box-shadow: 0 0 15px #fff; transition: 1s; }
 </style>\"\"\", unsafe_allow_html=True)""",
 
-        "DASHBOARD_PAGE": """# --- 儀錶板頁面 (樣式+邏輯) ---
+        "DASHBOARD_PAGE": """
 st.markdown(\"\"\"<style>
-.habit-card {
-    background: linear-gradient(145deg, #0d0d0d, #050505);
-    border: 1px solid #1a1a1a; border-radius: 12px; padding: 20px; margin-bottom: 12px;
-    border-left: 5px solid #fff; transition: 0.3s;
-}
+.habit-card { background: linear-gradient(145deg, #0d0d0d, #050505); border: 1px solid #1a1a1a; border-radius: 12px; padding: 20px; margin-bottom: 12px; border-left: 5px solid #fff; }
 .task-card { background: #080808; border: 1px solid #151515; border-radius: 8px; padding: 12px; margin-bottom: 8px; }
 .done-blur { opacity: 0.3; filter: grayscale(100%); }
 </style>\"\"\", unsafe_allow_html=True)
+st.write("儀錶板模組已加載")""",
 
-xp_pct = data["total_xp"] % 100
-st.markdown(f"### LV.{data['level']} <span style='float:right; color:#666;'>{xp_pct}/100 XP</span>", unsafe_allow_html=True)
-st.markdown(f'<div class="xp-bar"><div class="xp-progress" style="width:{xp_pct}%"></div></div>', unsafe_allow_html=True)
-
-# 快速新增與清單顯示邏輯...
-l, r = st.columns([1.6, 1])
-with l:
-    st.markdown("<div class='header-tag'>// Protocols</div>", unsafe_allow_html=True)
-    # 習慣循環顯示...
-with r:
-    st.markdown("<div class='header-tag'>// Scans</div>", unsafe_allow_html=True)
-    # 任務循環顯示...""",
-
-        "VOID_PAGE": """# --- 專注空間頁面 (動畫+計時) ---
+        "VOID_PAGE": """
 st.markdown(\"\"\"<style>
-@keyframes glow {
-    0% { text-shadow: 0 0 5px #fff; opacity: 0.8; }
-    50% { text-shadow: 0 0 20px #fff, 0 0 30px #fff; opacity: 1; }
-    100% { text-shadow: 0 0 5px #fff; opacity: 0.8; }
-}
+@keyframes glow { 0% { text-shadow: 0 0 5px #fff; opacity: 0.8; } 50% { text-shadow: 0 0 20px #fff, 0 0 30px #fff; opacity: 1; } 100% { text-shadow: 0 0 5px #fff; opacity: 0.8; } }
 .timer-active { font-size: 120px; font-family: monospace; text-align: center; animation: glow 2s infinite ease-in-out; }
 </style>\"\"\", unsafe_allow_html=True)
-
-st.markdown("<div class='header-tag'>// 深度專注序列</div>", unsafe_allow_html=True)
 m = st.slider("時長", 5, 120, 25, 5)
 if st.button("啟動序列", use_container_width=True):
     ph = st.empty()
@@ -73,7 +52,7 @@ if st.button("啟動序列", use_container_width=True):
     }
 
 # =========================================================
-# 【核心系統架構】
+# 【數據處理系統】
 # =========================================================
 
 def load_data():
@@ -104,10 +83,11 @@ def add_xp(amount):
 today = datetime.now().strftime("%Y-%m-%d")
 yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 
-# 執行全局樣式
-exec(st.session_state.code_store["GLOBAL_STYLE"])
+# --- 安全執行全局樣式 ---
+if "GLOBAL_STYLE" in st.session_state.code_store:
+    exec(st.session_state.code_store["GLOBAL_STYLE"])
 
-# --- 側邊欄 ---
+# --- 側邊欄導航 ---
 with st.sidebar:
     st.title("MONO // OS")
     nav = ["儀錶板", "數據中心", "專注空間", "成就檔案", "系統設定"]
@@ -118,18 +98,16 @@ with st.sidebar:
 # 1. 儀錶板 
 # ---------------------------------------------------------
 if page == "儀錶板":
-    # 這裡演示如何直接運行 code_store 內容，但為了效能，主程式仍保留實體代碼
-    # 導出時則會合併 code_store 的內容
     xp_pct = data["total_xp"] % 100
     st.markdown(f"### LV.{data['level']} <span style='float:right; color:#666;'>{xp_pct}/100 XP</span>", unsafe_allow_html=True)
     st.markdown(f'<div class="xp-bar"><div class="xp-progress" style="width:{xp_pct}%"></div></div>', unsafe_allow_html=True)
 
     c1, c2, c3 = st.columns([4, 1.2, 0.8])
-    new_name = c1.text_input("任務", placeholder="輸入...", label_visibility="collapsed")
-    new_type = c2.segmented_control("類型", ["習慣", "任務"], default="習慣", label_visibility="collapsed")
-    if c3.button("＋啟動", use_container_width=True) and new_name:
-        if new_type == "習慣": data["habits"].append({"name": new_name, "streak": 0, "last_done": ""})
-        else: data["tasks"].append({"name": new_name})
+    n_name = c1.text_input("任務", placeholder="輸入...", key="new_task", label_visibility="collapsed")
+    n_type = c2.segmented_control("類型", ["習慣", "任務"], default="習慣", label_visibility="collapsed")
+    if c3.button("＋啟動", use_container_width=True) and n_name:
+        if n_type == "習慣": data["habits"].append({"name": n_name, "streak": 0, "last_done": ""})
+        else: data["tasks"].append({"name": n_name})
         save_data(data); st.rerun()
 
     l, r = st.columns([1.6, 1])
@@ -139,7 +117,7 @@ if page == "儀錶板":
             done = (h["last_done"] == today)
             st.markdown(f'<div class="habit-card {"done-blur" if done else ""}">{h["name"]} (Streak: {h["streak"]})</div>', unsafe_allow_html=True)
             if not done:
-                if st.button(f"簽到 #{idx}", key=f"h_{idx}"):
+                if st.button(f"簽到", key=f"h_{idx}"):
                     h["streak"] = h["streak"] + 1 if h["last_done"] == yesterday else 1
                     h["last_done"] = today
                     add_xp(25); st.rerun()
@@ -152,46 +130,31 @@ if page == "儀錶板":
                 data["tasks"].pop(idx); save_data(data); st.rerun()
 
 # ---------------------------------------------------------
-# 2. 開發者主機 (分段導出系統)
+# 2. 開發者主機 (分段導出)
 # ---------------------------------------------------------
 elif page == "開發者主機":
-    st.title("🛠 MODULAR CODE STATION")
-    st.info("每個分段皆包含該頁面的 CSS 樣式、動畫與核心 Python 邏輯。")
-    
-    mod = st.selectbox("選擇要編輯的模組頁面", list(st.session_state.code_store.keys()))
-    st.session_state.code_store[mod] = st.text_area("代碼編輯區", st.session_state.code_store[mod], height=500)
+    st.title("🛠 MODULAR CONSOLE")
+    mod_keys = list(st.session_state.code_store.keys())
+    mod = st.selectbox("選擇模組", mod_keys)
+    st.session_state.code_store[mod] = st.text_area("編輯", st.session_state.code_store[mod], height=400)
     
     st.divider()
-    
-    # 導出邏輯：將所有分段組合
-    full_py = f"""import streamlit as st
-import json, os, time
-import pandas as pd
-import plotly.express as px
-from datetime import datetime, timedelta
-
-# --- 核心數據配置 ---
-DB_FILE = "mono_v10_data.json"
-def load_data(): ... # 略
-
-# --- [模組分段導出] ---
-
-{st.session_state.code_store["GLOBAL_STYLE"]}
-
-if page == "儀錶板":
-{st.session_state.code_store["DASHBOARD_PAGE"]}
-
-elif page == "專注空間":
-{st.session_state.code_store["VOID_PAGE"]}
+    full_export = f"""
+# MONO OS MODULAR EXPORT
+{st.session_state.code_store.get('GLOBAL_STYLE', '')}
+# --- 儀錶板部份 ---
+{st.session_state.code_store.get('DASHBOARD_PAGE', '')}
+# --- 專注空間部份 ---
+{st.session_state.code_store.get('VOID_PAGE', '')}
 """
-    st.download_button("🚀 導出完整專案 (.py)", data=full_py, file_name="mono_os_modular.py", use_container_width=True)
+    st.download_button("📦 下載總 py", data=full_export, file_name="mono_export.py")
 
 # ---------------------------------------------------------
 # 3. 專注空間
 # ---------------------------------------------------------
 elif page == "專注空間":
-    # 執行 VOID 頁面代碼
-    exec(st.session_state.code_store["VOID_PAGE"])
+    if "VOID_PAGE" in st.session_state.code_store:
+        exec(st.session_state.code_store["VOID_PAGE"])
 
 elif page == "系統設定":
     st.title("Settings")
