@@ -7,16 +7,18 @@ import plotly.express as px
 from datetime import datetime, timedelta
 
 # --- 0. 基礎配置 ---
-DB_FILE = "mono_v7_data.json"
+DB_FILE = "mono_v8_data.json"
 st.set_page_config(page_title="MONO // 自律 OS", layout="wide")
 
 # =========================================================
-# 【開發者專區：各模組原始碼節錄】
+# 【模組化代碼倉庫】 - 這裡儲存所有頁面的邏輯
 # =========================================================
 
-def get_css_code():
-    return """
-/* 介面風格模組 */
+# 初始化代碼倉庫，讓用戶可以在站內修改
+if 'code_store' not in st.session_state:
+    st.session_state.code_store = {
+        "CSS": """
+/* 介面風格模塊 */
 <style>
 .stApp { background-color: #000; color: #fff; }
 [data-testid="stSidebar"] { background-color: #050505; border-right: 1px solid #111; }
@@ -33,31 +35,47 @@ def get_css_code():
 .xp-progress { background: #fff; height: 100%; box-shadow: 0 0 15px #fff; transition: 1s; }
 .header-tag { font-size: 10px; color: #444; letter-spacing: 4px; font-weight: 800; text-transform: uppercase; margin-bottom: 20px; }
 </style>
-"""
-
-def get_dashboard_code():
-    return """
-# 頁面：儀錶板邏輯
+""",
+        "DASHBOARD": """
+# --- 頁面 1: 儀錶板邏輯 ---
+# 渲染等級與 XP 條
 xp_pct = data["total_xp"] % 100
-st.markdown(f"LV.{data['level']} ...") # 渲染等級條
+st.markdown(f"LV.{data['level']} ...")
 
-# 新增任務區
-c1, c2, c3 = st.columns([4, 1, 1])
-name = c1.text_input(...)
-if c3.button("＋ 啟動"):
-    # 邏輯判斷與存檔
-"""
+# 橫向任務新增區
+c1, c2, c3 = st.columns([4, 1.2, 0.8])
+name = c1.text_input("任務名稱", ...)
 
-def get_analytics_code():
-    return """
-# 頁面：數據中心邏輯
-df = pd.DataFrame(data["habits"])
-fig = px.bar(df, x="streak", y="name", orientation='h', color_discrete_sequence=['#ffffff'])
-st.plotly_chart(fig)
+# 習慣與任務卡片渲染邏輯
+l_col, r_col = st.columns([1.6, 1])
+with l_col: # 渲染 Habits
+with r_col: # 渲染 Tasks
+""",
+        "ANALYTICS": """
+# --- 頁面 2: 數據中心邏輯 ---
+if data["habits"]:
+    df = pd.DataFrame(data["habits"])
+    fig = px.bar(df, x="streak", y="name", orientation='h', color_discrete_sequence=['#ffffff'])
+    fig.update_layout(paper_bgcolor='black', plot_bgcolor='black', font_color='white')
+    st.plotly_chart(fig, use_container_width=True)
+""",
+        "VOID": """
+# --- 頁面 3: 專注空間邏輯 ---
+m = st.number_input("設定分鐘", 1, 120, 25)
+if st.button("啟動專注序列"):
+    # 倒數計時迴圈與 XP 獎勵
+    add_xp(15)
+""",
+        "CORE_LOGIC": """
+# --- 核心數據處理 ---
+def load_data(): ...
+def save_data(data): ...
+def add_xp(amount): ...
 """
+    }
 
 # =========================================================
-# 【核心系統邏輯】
+# 【核心系統功能】
 # =========================================================
 
 def load_data():
@@ -79,7 +97,7 @@ if 'data' not in st.session_state:
     st.session_state.data = load_data()
 
 data = st.session_state.data
-st.markdown(get_css_code(), unsafe_allow_html=True)
+st.markdown(st.session_state.code_store["CSS"], unsafe_allow_html=True)
 
 def add_xp(amount):
     data["total_xp"] += amount
@@ -94,7 +112,7 @@ with st.sidebar:
     st.title("MONO // OS")
     nav = ["儀錶板", "數據中心", "專注空間", "成就檔案", "系統設定"]
     if data.get("dev_mode"): nav.append("開發者主機")
-    page = st.radio("導覽指示", nav)
+    page = st.sidebar.radio("導覽指示", nav)
 
 # ---------------------------------------------------------
 # 1. 儀錶板 (DASHBOARD)
@@ -109,7 +127,6 @@ if page == "儀錶板":
         <div class="xp-bar"><div class="xp-progress" style="width: {xp_pct}%;"></div></div>
     """, unsafe_allow_html=True)
 
-    # 極簡新增區
     with st.container():
         c1, c2, c3 = st.columns([4, 1.2, 0.8])
         new_name = c1.text_input("任務名稱", placeholder="輸入新目標或習慣...", label_visibility="collapsed")
@@ -130,10 +147,8 @@ if page == "儀錶板":
             st.markdown(f"""
                 <div class="habit-card {'done-blur' if is_done else ''}">
                     <div style='display: flex; justify-content: space-between; align-items: center;'>
-                        <div>
-                            <div style='font-size: 24px; font-weight: 800;'>{h['name']}</div>
-                            <div style='font-size: 12px; color: #555; margin-top:4px;'>連勝紀錄：{h['streak']} DAY</div>
-                        </div>
+                        <div><div style='font-size: 24px; font-weight: 800;'>{h['name']}</div>
+                        <div style='font-size: 12px; color: #555;'>連勝紀錄：{h['streak']} DAY</div></div>
                         <div style='font-size: 28px; font-weight: 900; color: #1a1a1a;'>{idx:02}</div>
                     </div>
                 </div>
@@ -154,41 +169,68 @@ if page == "儀錶板":
                 data["tasks"].pop(idx); save_data(data); st.rerun()
 
 # ---------------------------------------------------------
-# 2. 開發者主機 (DEV WORKSTATION)
+# 2. 開發者主機 (站內修改與導出)
 # ---------------------------------------------------------
 elif page == "開發者主機":
     st.title("🛠 開發者代碼工作站")
-    st.write("在此可以直接節錄各分頁程式碼，進行針對性修改後重新部署。")
+    st.warning("注意：在此修改代碼字串僅供導出使用，不會改變當前運行的網頁行為。")
     
-    # 將每個部分分開展示，方便「直接修改」與複製
-    dev_tabs = st.tabs(["[1] 介面風格 (CSS)", "[2] 儀錶板邏輯", "[3] 數據分析", "[4] 資料結構", "[5] 總導出"])
+    # 建立可編輯區域
+    tab_list = list(st.session_state.code_store.keys())
+    selected_tab = st.radio("選擇編輯模組", tab_list, horizontal=True)
     
-    with dev_tabs[0]:
-        st.markdown("### 介面樣式 CSS")
-        st.code(get_css_code(), language="css")
-        
-    with dev_tabs[1]:
-        st.markdown("### 首頁儀錶板 Python 節錄")
-        st.code(get_dashboard_code(), language="python")
+    # 使用 text_area 讓用戶可以直接修改
+    edited_code = st.text_area(
+        f"編輯 {selected_tab} 模組代碼", 
+        st.session_state.code_store[selected_tab], 
+        height=400,
+        help="修改後將會同步到總 py 導出中"
+    )
+    
+    if edited_code != st.session_state.code_store[selected_tab]:
+        st.session_state.code_store[selected_tab] = edited_code
+        st.success("代碼暫存已更新！")
 
-    with dev_tabs[2]:
-        st.markdown("### 數據中心 Python 節錄")
-        st.code(get_analytics_code(), language="python")
+    st.divider()
+    
+    # 總導出邏輯
+    st.markdown("### 📦 統一導出總 py")
+    
+    # 組合代碼
+    full_py_content = f"""
+import streamlit as st
+import json
+import os
+import time
+import pandas as pd
+import plotly.express as px
+from datetime import datetime, timedelta
 
-    with dev_tabs[3]:
-        st.markdown("### 當前 JSON 資料狀態")
-        st.json(data)
+# --- 站內編輯後的 CSS ---
+{st.session_state.code_store['CSS']}
 
-    with dev_tabs[4]:
-        st.markdown("### 📦 總程式碼備份與導出")
-        # 建立一個包含所有資訊的導出
-        export_text = f"#{'='*20}\n# MONO OS TOTAL EXPORT\n#{'='*20}\n"
-        export_text += f"# DATE: {today}\n# DATA_COUNT: {len(data['habits'])} Habits\n\n"
-        st.download_button("導出完整專案檔案 (.py)", data=export_text, file_name="mono_os_full.py", use_container_width=True)
-        st.download_button("導出數據庫 (.json)", data=json.dumps(data, indent=4), file_name="mono_db.json", use_container_width=True)
+# --- 核心邏輯與數據處理 ---
+{st.session_state.code_store['CORE_LOGIC']}
+
+# --- 儀錶板模塊 ---
+{st.session_state.code_store['DASHBOARD']}
+
+# --- 數據中心模塊 ---
+{st.session_state.code_store['ANALYTICS']}
+
+# --- 專注空間模塊 ---
+{st.session_state.code_store['VOID']}
+"""
+    st.download_button(
+        label="下載總 py 檔案",
+        data=full_py_content,
+        file_name="mono_os_modular.py",
+        mime="text/x-python",
+        use_container_width=True
+    )
 
 # ---------------------------------------------------------
-# 3. 其他頁面 (精簡呈現)
+# 其他頁面
 # ---------------------------------------------------------
 elif page == "數據中心":
     st.title("數據可視化")
@@ -197,12 +239,11 @@ elif page == "數據中心":
         fig = px.bar(df, x="streak", y="name", orientation='h', color_discrete_sequence=['#ffffff'])
         fig.update_layout(paper_bgcolor='black', plot_bgcolor='black', font_color='white')
         st.plotly_chart(fig, use_container_width=True)
-    else: st.info("目前沒有數據可供分析。")
 
 elif page == "專注空間":
     st.title("VOID計時器")
     m = st.number_input("設定分鐘", 1, 120, 25)
-    if st.button("啟動專注序列", use_container_width=True):
+    if st.button("啟動專注序列"):
         ph = st.empty()
         for i in range(m * 60, 0, -1):
             mm, ss = divmod(i, 60)
@@ -218,7 +259,3 @@ elif page == "系統設定":
     st.title("系統核心設定")
     data["dev_mode"] = st.toggle("開啟開發者模式", value=data.get("dev_mode", False))
     save_data(data)
-    st.divider()
-    if st.button("格式化系統 (清空數據)"):
-        if os.path.exists(DB_FILE): os.remove(DB_FILE)
-        st.session_state.clear(); st.rerun()
