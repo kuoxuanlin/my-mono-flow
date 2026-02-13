@@ -1,36 +1,16 @@
-import streamlit as st
-import json
-import os
-import time
-import pandas as pd
-import plotly.express as px
-from datetime import datetime, timedelta
-
-# --- 0. 基礎配置 ---
-DB_FILE = "mono_v11_data.json"
-st.set_page_config(page_title="MONO // 自律 OS", layout="wide")
-
-# =========================================================
-# 【全頁面模組倉庫】 - 這裡決定了所有頁面的外觀與邏輯
-# =========================================================
-
-if 'code_store' not in st.session_state:
-    st.session_state.code_store = {
-        "1_GLOBAL": """# --- 全局樣式 ---
-st.markdown(\"\"\"<style>
+import streamlit as st\nimport json, os, time\nimport pandas as pd\nimport plotly.express as px\nfrom datetime import datetime, timedelta\n\n\n# --- MODULE: 1_GLOBAL ---\n# --- 全局樣式 ---
+st.markdown("""<style>
 .stApp { background-color: #000; color: #fff; }
 [data-testid="stSidebar"] { background-color: #050505; border-right: 1px solid #111; }
 .header-tag { font-size: 10px; color: #444; letter-spacing: 4px; font-weight: 800; text-transform: uppercase; margin-bottom: 20px; }
 .xp-bar { background: #111; border-radius: 50px; height: 10px; width: 100%; margin: 15px 0; overflow: hidden; }
 .xp-progress { background: #fff; height: 100%; box-shadow: 0 0 15px #fff; transition: 1s; }
-</style>\"\"\", unsafe_allow_html=True)""",
-
-        "2_DASHBOARD": """# --- 儀錶板頁面 ---
-st.markdown(\"\"\"<style>
+</style>""", unsafe_allow_html=True)\n\n# --- MODULE: 2_DASHBOARD ---\n# --- 儀錶板頁面 ---
+st.markdown("""<style>
 .habit-card { background: linear-gradient(145deg, #0d0d0d, #050505); border: 1px solid #1a1a1a; border-radius: 12px; padding: 20px; margin-bottom: 12px; border-left: 5px solid #fff; }
 .task-card { background: #080808; border: 1px solid #151515; border-radius: 8px; padding: 12px; margin-bottom: 8px; }
 .done-blur { opacity: 0.3; filter: grayscale(100%); }
-</style>\"\"\", unsafe_allow_html=True)
+</style>""", unsafe_allow_html=True)
 
 xp_pct = data["total_xp"] % 100
 st.markdown(f"### LV.{data['level']} <span style='float:right; color:#666;'>{xp_pct}/100 XP</span>", unsafe_allow_html=True)
@@ -60,9 +40,7 @@ with r:
         st.markdown(f'<div class="task-card">{t["name"]}</div>', unsafe_allow_html=True)
         if st.button("✔", key=f"t_{idx}"):
             data["history"].append({"項目": t["name"], "日期": today, "類型": "任務"})
-            data["tasks"].pop(idx); save_data(data); st.rerun()""",
-
-        "3_DATA_CENTER": """# --- 數據中心頁面 ---
+            data["tasks"].pop(idx); save_data(data); st.rerun()\n\n# --- MODULE: 3_DATA_CENTER ---\n# --- 數據中心頁面 ---
 st.title("STATISTICS")
 if data["habits"]:
     df = pd.DataFrame(data["habits"])
@@ -70,108 +48,55 @@ if data["habits"]:
     fig.update_layout(paper_bgcolor='black', plot_bgcolor='black', font_color='white')
     st.plotly_chart(fig, use_container_width=True)
 else:
-    st.write("尚無數據序列可供掃描。")""",
-
-        "4_VOID": """# --- 專注空間頁面 ---
+    st.write("尚無數據序列可供掃描。")\n\n# --- MODULE: 4_VOID ---\n# --- 專注空間頁面 (神經脈衝增強版) ---
 st.markdown(\"\"\"<style>
 @keyframes glow { 0% { text-shadow: 0 0 5px #fff; opacity: 0.8; } 50% { text-shadow: 0 0 20px #fff, 0 0 30px #fff; opacity: 1; } 100% { text-shadow: 0 0 5px #fff; opacity: 0.8; } }
-.timer-active { font-size: 120px; font-family: monospace; text-align: center; animation: glow 2s infinite ease-in-out; }
+@keyframes pulse { 0% { height: 10px; } 50% { height: 30px; } 100% { height: 10px; } }
+.timer-active { font-size: 120px; font-family: monospace; text-align: center; animation: glow 2s infinite ease-in-out; margin: 20px 0; }
+.wave-container { display: flex; justify-content: center; align-items: flex-end; gap: 5px; height: 40px; margin-bottom: 20px; }
+.wave-bar { width: 4px; background: #fff; animation: pulse 1s infinite ease-in-out; }
 </style>\"\"\", unsafe_allow_html=True)
 
-st.markdown("<div class='header-tag'>// 深度專注序列</div>", unsafe_allow_html=True)
-m = st.slider("時長 (MIN)", 5, 120, 25, 5)
-if st.button("啟動序列", use_container_width=True):
-    ph = st.empty(); bar = st.progress(0)
-    for i in range(m*60, -1, -1):
-        mm, ss = divmod(i, 60)
-        ph.markdown(f"<div class='timer-active'>{mm:02}:{ss:02}</div>", unsafe_allow_html=True)
-        bar.progress(1.0 - (i/(m*60))); time.sleep(1)
-    st.success("完成"); add_xp(15); st.balloons()""",
+st.markdown("<div class='header-tag'>// 深度專注序列 NEURAL_VOID</div>", unsafe_allow_html=True)
 
-        "5_ACHIEVEMENT": """# --- 成就檔案頁面 ---
+# 隨機格言庫
+quotes = [
+    "靜默是最高級的運算。", "刪除雜訊，保留核心。", "專注是唯一的武裝。", 
+    "在代碼中尋找秩序。", "序列運作中，請勿干擾。"
+]
+
+m = st.slider("設定頻率時長 (MIN)", 5, 120, 25, 5)
+
+if st.button("啟動專注序列", use_container_width=True):
+    # 建立動態元件
+    placeholder = st.empty()
+    bar = st.progress(0)
+    quote_box = st.info(quotes[int(time.time()) % len(quotes)])
+    
+    # 渲染模擬音頻波形 (視覺動畫)
+    wave_html = "<div class='wave-container'>" + "".join([f"<div class='wave-bar' style='animation-delay: {0.1*i}s'></div>" for i in range(15)]) + "</div>"
+    st.markdown(wave_html, unsafe_allow_html=True)
+    
+    total_s = m * 60
+    for i in range(total_s, -1, -1):
+        mm, ss = divmod(i, 60)
+        # 顯示倒數與波形
+        placeholder.markdown(f"<div class='timer-active'>{mm:02}:{ss:02}</div>", unsafe_allow_html=True)
+        bar.progress(1.0 - (i/total_s))
+        
+        # 每分鐘切換一次格言
+        if i % 60 == 0 and i != total_s:
+             quote_box.info(quotes[(i//60) % len(quotes)])
+             
+        time.sleep(1)
+        
+    # 完成序列
+    st.success(f"序列執行完畢。獲取 15 XP，精神穩定度提升。")
+    data["history"].append({"項目": f"深度專注 {m}min", "日期": today, "類型": "精神強化"})
+    add_xp(15)
+    st.balloons()\n\n# --- MODULE: 5_ACHIEVEMENT ---\n# --- 成就檔案頁面 ---
 st.title("ARCHIVES")
 if data["history"]:
     st.table(pd.DataFrame(data["history"]))
 else:
-    st.write("歷史序列為空。")"""
-    }
-
-# =========================================================
-# 【核心邏輯系統】
-# =========================================================
-
-def load_data():
-    defaults = {"habits": [], "tasks": [], "total_xp": 0, "level": 1, "history": [], "dev_mode": False}
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, "r") as f:
-            try:
-                d = json.load(f)
-                for k, v in defaults.items():
-                    if k not in d: d[k] = v
-                return d
-            except: return defaults
-    return defaults
-
-def save_data(data):
-    with open(DB_FILE, "w") as f: json.dump(data, f)
-
-if 'data' not in st.session_state:
-    st.session_state.data = load_data()
-
-data = st.session_state.data
-
-def add_xp(amount):
-    data["total_xp"] += amount
-    data["level"] = (data["total_xp"] // 100) + 1
-    save_data(data)
-
-today = datetime.now().strftime("%Y-%m-%d")
-yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-
-# 1. 執行全局樣式
-if "1_GLOBAL" in st.session_state.code_store:
-    exec(st.session_state.code_store["1_GLOBAL"])
-
-# --- 側邊欄導航 ---
-with st.sidebar:
-    st.title("MONO // OS")
-    nav = ["儀錶板", "數據中心", "專注空間", "成就檔案", "系統設定"]
-    if data.get("dev_mode"): nav.append("開發者主機")
-    page = st.radio("導覽", nav)
-
-# =========================================================
-# 【頁面渲染引擎】 - 全自動 exec 模組
-# =========================================================
-
-if page == "儀錶板":
-    exec(st.session_state.code_store["2_DASHBOARD"])
-
-elif page == "數據中心":
-    exec(st.session_state.code_store["3_DATA_CENTER"])
-
-elif page == "專注空間":
-    exec(st.session_state.code_store["4_VOID"])
-
-elif page == "成就檔案":
-    exec(st.session_state.code_store["5_ACHIEVEMENT"])
-
-elif page == "開發者主機":
-    st.title("🛠 MODULAR ARCHITECT")
-    target = st.selectbox("選擇編輯頁面模組", list(st.session_state.code_store.keys()))
-    st.session_state.code_store[target] = st.text_area("程式碼與樣式編輯區", st.session_state.code_store[target], height=500)
-    
-    st.divider()
-    # 導出邏輯
-    export_code = f"import streamlit as st\\nimport json, os, time\\nimport pandas as pd\\nimport plotly.express as px\\nfrom datetime import datetime, timedelta\\n\\n"
-    for k in sorted(st.session_state.code_store.keys()):
-        export_code += f"\\n# --- MODULE: {k} ---\\n" + st.session_state.code_store[k] + "\\n"
-    
-    st.download_button("📦 導出當前 OS 完整程式碼", data=export_code, file_name="mono_custom_os.py")
-
-elif page == "系統設定":
-    st.title("SYSTEM")
-    data["dev_mode"] = st.toggle("開發者模式", value=data.get("dev_mode", False))
-    if st.button("清除所有本地數據"):
-        if os.path.exists(DB_FILE): os.remove(DB_FILE)
-        st.rerun()
-    save_data(data)
+    st.write("歷史序列為空。")\n
