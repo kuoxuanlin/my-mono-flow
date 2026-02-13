@@ -7,17 +7,16 @@ import plotly.express as px
 from datetime import datetime, timedelta
 
 # --- 0. 基礎配置 ---
-DB_FILE = "mono_v10_data.json"
+DB_FILE = "mono_v11_data.json"
 st.set_page_config(page_title="MONO // 自律 OS", layout="wide")
 
 # =========================================================
-# 【核心：分段代碼倉庫初始化】
+# 【全頁面模組倉庫】 - 這裡決定了所有頁面的外觀與邏輯
 # =========================================================
 
-# 確保 code_store 在任何情況下都會先被建立
 if 'code_store' not in st.session_state:
     st.session_state.code_store = {
-        "GLOBAL_STYLE": """
+        "1_GLOBAL": """# --- 全局樣式 ---
 st.markdown(\"\"\"<style>
 .stApp { background-color: #000; color: #fff; }
 [data-testid="stSidebar"] { background-color: #050505; border-right: 1px solid #111; }
@@ -26,33 +25,79 @@ st.markdown(\"\"\"<style>
 .xp-progress { background: #fff; height: 100%; box-shadow: 0 0 15px #fff; transition: 1s; }
 </style>\"\"\", unsafe_allow_html=True)""",
 
-        "DASHBOARD_PAGE": """
+        "2_DASHBOARD": """# --- 儀錶板頁面 ---
 st.markdown(\"\"\"<style>
 .habit-card { background: linear-gradient(145deg, #0d0d0d, #050505); border: 1px solid #1a1a1a; border-radius: 12px; padding: 20px; margin-bottom: 12px; border-left: 5px solid #fff; }
 .task-card { background: #080808; border: 1px solid #151515; border-radius: 8px; padding: 12px; margin-bottom: 8px; }
 .done-blur { opacity: 0.3; filter: grayscale(100%); }
 </style>\"\"\", unsafe_allow_html=True)
-st.write("儀錶板模組已加載")""",
 
-        "VOID_PAGE": """
+xp_pct = data["total_xp"] % 100
+st.markdown(f"### LV.{data['level']} <span style='float:right; color:#666;'>{xp_pct}/100 XP</span>", unsafe_allow_html=True)
+st.markdown(f'<div class="xp-bar"><div class="xp-progress" style="width:{xp_pct}%"></div></div>', unsafe_allow_html=True)
+
+c1, c2, c3 = st.columns([4, 1.2, 0.8])
+n_name = c1.text_input("任務", placeholder="輸入...", key="new_task", label_visibility="collapsed")
+n_type = c2.segmented_control("類型", ["習慣", "任務"], default="習慣", label_visibility="collapsed")
+if c3.button("＋啟動", use_container_width=True) and n_name:
+    if n_type == "習慣": data["habits"].append({"name": n_name, "streak": 0, "last_done": ""})
+    else: data["tasks"].append({"name": n_name})
+    save_data(data); st.rerun()
+
+l, r = st.columns([1.6, 1])
+with l:
+    st.markdown("<div class='header-tag'>// Protocols</div>", unsafe_allow_html=True)
+    for idx, h in enumerate(data["habits"]):
+        done = (h["last_done"] == today)
+        st.markdown(f'<div class="habit-card {"done-blur" if done else ""}">{h["name"]} (Streak: {h["streak"]})</div>', unsafe_allow_html=True)
+        if not done and st.button(f"簽到", key=f"h_{idx}"):
+            h["streak"] = h["streak"] + 1 if h["last_done"] == yesterday else 1
+            h["last_done"] = today
+            add_xp(25); st.rerun()
+with r:
+    st.markdown("<div class='header-tag'>// Scans</div>", unsafe_allow_html=True)
+    for idx, t in enumerate(data["tasks"]):
+        st.markdown(f'<div class="task-card">{t["name"]}</div>', unsafe_allow_html=True)
+        if st.button("✔", key=f"t_{idx}"):
+            data["history"].append({"項目": t["name"], "日期": today, "類型": "任務"})
+            data["tasks"].pop(idx); save_data(data); st.rerun()""",
+
+        "3_DATA_CENTER": """# --- 數據中心頁面 ---
+st.title("STATISTICS")
+if data["habits"]:
+    df = pd.DataFrame(data["habits"])
+    fig = px.bar(df, x="streak", y="name", orientation='h', color_discrete_sequence=['#ffffff'])
+    fig.update_layout(paper_bgcolor='black', plot_bgcolor='black', font_color='white')
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.write("尚無數據序列可供掃描。")""",
+
+        "4_VOID": """# --- 專注空間頁面 ---
 st.markdown(\"\"\"<style>
 @keyframes glow { 0% { text-shadow: 0 0 5px #fff; opacity: 0.8; } 50% { text-shadow: 0 0 20px #fff, 0 0 30px #fff; opacity: 1; } 100% { text-shadow: 0 0 5px #fff; opacity: 0.8; } }
 .timer-active { font-size: 120px; font-family: monospace; text-align: center; animation: glow 2s infinite ease-in-out; }
 </style>\"\"\", unsafe_allow_html=True)
-m = st.slider("時長", 5, 120, 25, 5)
+
+st.markdown("<div class='header-tag'>// 深度專注序列</div>", unsafe_allow_html=True)
+m = st.slider("時長 (MIN)", 5, 120, 25, 5)
 if st.button("啟動序列", use_container_width=True):
-    ph = st.empty()
-    bar = st.progress(0)
+    ph = st.empty(); bar = st.progress(0)
     for i in range(m*60, -1, -1):
         mm, ss = divmod(i, 60)
         ph.markdown(f"<div class='timer-active'>{mm:02}:{ss:02}</div>", unsafe_allow_html=True)
-        bar.progress(1.0 - (i/(m*60)))
-        time.sleep(1)
-    st.success("完成"); add_xp(15); st.balloons()"""
+        bar.progress(1.0 - (i/(m*60))); time.sleep(1)
+    st.success("完成"); add_xp(15); st.balloons()""",
+
+        "5_ACHIEVEMENT": """# --- 成就檔案頁面 ---
+st.title("ARCHIVES")
+if data["history"]:
+    st.table(pd.DataFrame(data["history"]))
+else:
+    st.write("歷史序列為空。")"""
     }
 
 # =========================================================
-# 【數據處理系統】
+# 【核心邏輯系統】
 # =========================================================
 
 def load_data():
@@ -83,9 +128,9 @@ def add_xp(amount):
 today = datetime.now().strftime("%Y-%m-%d")
 yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 
-# --- 安全執行全局樣式 ---
-if "GLOBAL_STYLE" in st.session_state.code_store:
-    exec(st.session_state.code_store["GLOBAL_STYLE"])
+# 1. 執行全局樣式
+if "1_GLOBAL" in st.session_state.code_store:
+    exec(st.session_state.code_store["1_GLOBAL"])
 
 # --- 側邊欄導航 ---
 with st.sidebar:
@@ -94,69 +139,39 @@ with st.sidebar:
     if data.get("dev_mode"): nav.append("開發者主機")
     page = st.radio("導覽", nav)
 
-# ---------------------------------------------------------
-# 1. 儀錶板 
-# ---------------------------------------------------------
+# =========================================================
+# 【頁面渲染引擎】 - 全自動 exec 模組
+# =========================================================
+
 if page == "儀錶板":
-    xp_pct = data["total_xp"] % 100
-    st.markdown(f"### LV.{data['level']} <span style='float:right; color:#666;'>{xp_pct}/100 XP</span>", unsafe_allow_html=True)
-    st.markdown(f'<div class="xp-bar"><div class="xp-progress" style="width:{xp_pct}%"></div></div>', unsafe_allow_html=True)
+    exec(st.session_state.code_store["2_DASHBOARD"])
 
-    c1, c2, c3 = st.columns([4, 1.2, 0.8])
-    n_name = c1.text_input("任務", placeholder="輸入...", key="new_task", label_visibility="collapsed")
-    n_type = c2.segmented_control("類型", ["習慣", "任務"], default="習慣", label_visibility="collapsed")
-    if c3.button("＋啟動", use_container_width=True) and n_name:
-        if n_type == "習慣": data["habits"].append({"name": n_name, "streak": 0, "last_done": ""})
-        else: data["tasks"].append({"name": n_name})
-        save_data(data); st.rerun()
+elif page == "數據中心":
+    exec(st.session_state.code_store["3_DATA_CENTER"])
 
-    l, r = st.columns([1.6, 1])
-    with l:
-        st.markdown("<div class='header-tag'>// Protocols</div>", unsafe_allow_html=True)
-        for idx, h in enumerate(data["habits"]):
-            done = (h["last_done"] == today)
-            st.markdown(f'<div class="habit-card {"done-blur" if done else ""}">{h["name"]} (Streak: {h["streak"]})</div>', unsafe_allow_html=True)
-            if not done:
-                if st.button(f"簽到", key=f"h_{idx}"):
-                    h["streak"] = h["streak"] + 1 if h["last_done"] == yesterday else 1
-                    h["last_done"] = today
-                    add_xp(25); st.rerun()
-    with r:
-        st.markdown("<div class='header-tag'>// Scans</div>", unsafe_allow_html=True)
-        for idx, t in enumerate(data["tasks"]):
-            st.markdown(f'<div class="task-card">{t["name"]}</div>', unsafe_allow_html=True)
-            if st.button("✔", key=f"t_{idx}"):
-                data["history"].append({"項目": t["name"], "日期": today, "類型": "任務"})
-                data["tasks"].pop(idx); save_data(data); st.rerun()
+elif page == "專注空間":
+    exec(st.session_state.code_store["4_VOID"])
 
-# ---------------------------------------------------------
-# 2. 開發者主機 (分段導出)
-# ---------------------------------------------------------
+elif page == "成就檔案":
+    exec(st.session_state.code_store["5_ACHIEVEMENT"])
+
 elif page == "開發者主機":
-    st.title("🛠 MODULAR CONSOLE")
-    mod_keys = list(st.session_state.code_store.keys())
-    mod = st.selectbox("選擇模組", mod_keys)
-    st.session_state.code_store[mod] = st.text_area("編輯", st.session_state.code_store[mod], height=400)
+    st.title("🛠 MODULAR ARCHITECT")
+    target = st.selectbox("選擇編輯頁面模組", list(st.session_state.code_store.keys()))
+    st.session_state.code_store[target] = st.text_area("程式碼與樣式編輯區", st.session_state.code_store[target], height=500)
     
     st.divider()
-    full_export = f"""
-# MONO OS MODULAR EXPORT
-{st.session_state.code_store.get('GLOBAL_STYLE', '')}
-# --- 儀錶板部份 ---
-{st.session_state.code_store.get('DASHBOARD_PAGE', '')}
-# --- 專注空間部份 ---
-{st.session_state.code_store.get('VOID_PAGE', '')}
-"""
-    st.download_button("📦 下載總 py", data=full_export, file_name="mono_export.py")
-
-# ---------------------------------------------------------
-# 3. 專注空間
-# ---------------------------------------------------------
-elif page == "專注空間":
-    if "VOID_PAGE" in st.session_state.code_store:
-        exec(st.session_state.code_store["VOID_PAGE"])
+    # 導出邏輯
+    export_code = f"import streamlit as st\\nimport json, os, time\\nimport pandas as pd\\nimport plotly.express as px\\nfrom datetime import datetime, timedelta\\n\\n"
+    for k in sorted(st.session_state.code_store.keys()):
+        export_code += f"\\n# --- MODULE: {k} ---\\n" + st.session_state.code_store[k] + "\\n"
+    
+    st.download_button("📦 導出當前 OS 完整程式碼", data=export_code, file_name="mono_custom_os.py")
 
 elif page == "系統設定":
-    st.title("Settings")
-    data["dev_mode"] = st.toggle("Dev Mode", value=data.get("dev_mode", False))
+    st.title("SYSTEM")
+    data["dev_mode"] = st.toggle("開發者模式", value=data.get("dev_mode", False))
+    if st.button("清除所有本地數據"):
+        if os.path.exists(DB_FILE): os.remove(DB_FILE)
+        st.rerun()
     save_data(data)
