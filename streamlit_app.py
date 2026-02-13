@@ -31,12 +31,21 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 資料邏輯 ---
-DB_FILE = "mono_v3_data.json"
-
+# --- 資料邏輯 (請將這段完整覆蓋原本的 load_data) ---
 def load_data():
     if os.path.exists(DB_FILE):
-        with open(DB_FILE, "r") as f: return json.load(f)
+        with open(DB_FILE, "r") as f:
+            try:
+                existing_data = json.load(f)
+                # 這幾行是關鍵：確保新舊功能標籤都存在
+                if "habits" not in existing_data: existing_data["habits"] = []
+                if "tasks" not in existing_data: existing_data["tasks"] = []
+                if "total_xp" not in existing_data: existing_data["total_xp"] = 0
+                if "level" not in existing_data: existing_data["level"] = 1
+                return existing_data
+            except:
+                # 如果檔案壞了，就回傳一個全新的結構
+                return {"habits": [], "tasks": [], "total_xp": 0, "level": 1}
     return {"habits": [], "tasks": [], "total_xp": 0, "level": 1}
 
 def save_data(data):
@@ -180,3 +189,4 @@ elif page == "榮譽殿堂":
             <div style="color: #444; margin-top: 20px;">最高連勝紀錄：{max_s} 天</div>
         </div>
     """, unsafe_allow_html=True)
+
