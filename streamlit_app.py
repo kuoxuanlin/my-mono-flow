@@ -8,11 +8,11 @@ from datetime import datetime, timedelta
 import io
 
 # --- 0. 基礎配置 ---
-DB_FILE = "mono_v17_data.json"
+DB_FILE = "mono_v18_data.json"
 st.set_page_config(page_title="MONO // 自律 OS", layout="wide")
 
 # =========================================================
-# 【全頁面模組初始化】 - 使用更安全的引號結構
+# 【全頁面模組初始化】
 # =========================================================
 
 if 'code_store' not in st.session_state:
@@ -21,7 +21,6 @@ if 'code_store' not in st.session_state:
         
         "4_VOID": """
 # --- 專注空間頁面 (神經脈衝增強版) ---
-# 注意：這裡我們改用單引號，避開三雙引號導致的轉義錯誤
 css = '<style>@keyframes glow { 0% { text-shadow: 0 0 5px #fff; opacity: 0.8; } 50% { text-shadow: 0 0 20px #fff, 0 0 30px #fff; opacity: 1; } 100% { text-shadow: 0 0 5px #fff; opacity: 0.8; } } @keyframes pulse { 0%, 100% { height: 10px; opacity: 0.3; } 50% { height: 40px; opacity: 1; } } .timer-active { font-size: 100px; font-family: monospace; text-align: center; animation: glow 2s infinite ease-in-out; margin-bottom: 0; } .neural-container { display: flex; justify-content: center; align-items: flex-end; gap: 4px; height: 50px; margin: 20px 0; } .pulse-bar { width: 3px; background: #fff; animation: pulse 1.5s infinite ease-in-out; }</style>'
 st.markdown(css, unsafe_allow_html=True)
 st.markdown("<div class='header-tag'>// 深度專注序列 NEURAL_VOID</div>", unsafe_allow_html=True)
@@ -33,7 +32,6 @@ if st.button("啟動專注序列", use_container_width=True):
     ph = st.empty()
     bar = st.progress(0)
     q_box = st.info(quotes[int(time.time()) % len(quotes)])
-    
     pulse_html = "<div class='neural-container'>" + "".join([f"<div class='pulse-bar' style='animation-delay: {0.1*i}s'></div>" for i in range(20)]) + "</div>"
     st.markdown(pulse_html, unsafe_allow_html=True)
     
@@ -99,14 +97,13 @@ exec_env = {
 def safe_exec(target_key):
     code = st.session_state.code_store.get(target_key, "")
     try:
-        # 【關鍵修復】：清理 text_area 產生的多餘轉義反斜線
+        # 清理轉義字元
         clean_code = code.replace('\\"', '"').replace("\\'", "'").strip()
         exec(clean_code, exec_env)
     except Exception as e:
         st.error(f"模組 {target_key} 執行失敗: {e}")
-        with st.expander("查看問題代碼"):
-            st.code(code)
 
+# --- 執行頁面 ---
 if page == "專注空間":
     safe_exec("4_VOID")
 
@@ -114,7 +111,28 @@ elif page == "開發者主機":
     st.title("🛠 MODULAR ARCHITECT")
     target = st.selectbox("選擇編輯模組", list(st.session_state.code_store.keys()))
     st.session_state.code_store[target] = st.text_area("代碼編輯區", st.session_state.code_store[target], height=500)
-    st.info("💡 提醒：請盡量使用單引號，避免使用連續三個雙引號。")
+    
+    st.divider()
+    
+    # 這裡就是你找好久的導出按鈕！
+    st.markdown("### 📦 系統導出序列")
+    
+    output = io.StringIO()
+    # 寫入 Header
+    output.write("import streamlit as st\nimport json, os, time\nimport pandas as pd\nimport plotly.express as px\nfrom datetime import datetime, timedelta\n\n")
+    
+    # 寫入各個模組
+    for k in sorted(st.session_state.code_store.keys()):
+        output.write(f"\n# --- MODULE: {k} ---\n")
+        output.write(st.session_state.code_store[k] + "\n")
+    
+    st.download_button(
+        label="💾 執行完整導出 (.py)",
+        data=output.getvalue().encode('utf-8'),
+        file_name="mono_os_final.py",
+        mime="text/x-python",
+        use_container_width=True
+    )
 
 elif page == "系統設定":
     st.title("SETTINGS")
